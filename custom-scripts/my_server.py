@@ -1,5 +1,6 @@
 import time
 import BaseHTTPServer
+import os
 
 
 HOST_NAME = '0.0.0.0' # !!!REMEMBER TO CHANGE THIS!!!
@@ -18,6 +19,36 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         s.end_headers()
         s.wfile.write("<html><head><title>Title goes here.</title></head>")
         s.wfile.write("<body><p>This is a test.</p>")
+        
+        #write time
+        os.environ['TZ'] = 'UTC+3'
+        datahora = os.popen('date').read()
+        s.wfile.write("<p>Data e Hora: %s</p>" % datahora)
+        
+        #uptime
+        uptime_file = open("/proc/uptime", "r")
+        uptime = uptime_file.read().split()[0]
+        s.wfile.write("<p>Uptime: %ss</p>" % uptime)
+        uptime_file.close()
+        
+        #cpu model and speed
+        cpu_file = open("/proc/cpuinfo", "r")
+        cpu_file_content = cpu_file.read().split("\n")
+        model = cpu_file_content[4].split(":")[1]
+        speed = cpu_file_content[6].split(":")[1]
+        s.wfile.write("<p>CPU Model: %s</p>" % model)
+        s.wfile.write("<p>CPU Speed: %s</p>" % speed)
+        cpu_file.close()
+        
+        #cpu load
+        stat_f = open("/proc/stat", "r")
+        cpu_line = stat_f.split(\n)[0].split()
+        load = int(cpu_line[1]) + int(cpu_line[2]) + int(cpu_line[3])
+        idle = int(cpu_line[4])
+        load_perc = (load / (load_idle)) * 100
+        
+        
+
         # If someone went to "http://something.somewhere.net/foo/bar/",
         # then s.path equals "/foo/bar/".
         s.wfile.write("<p>You accessed path: %s</p>" % s.path)
