@@ -1,10 +1,81 @@
 import time
 import BaseHTTPServer
 import os
+import platform
+import subprocess
 
 
 HOST_NAME = '0.0.0.0' # !!!REMEMBER TO CHANGE THIS!!!
 PORT_NUMBER = 8000
+
+#PEGAR USO DA CPU
+'''
+Created on 04.12.2014
+
+@author: plagtag
+'''
+from time import sleep
+import sys
+
+class GetCpuLoad(object):
+    '''
+    classdocs
+    '''
+
+
+    def __init__(self, percentage=True, sleeptime = 1):
+        '''
+        @parent class: GetCpuLoad
+        @date: 04.12.2014
+        @author: plagtag
+        @info: 
+        @param:
+        @return: CPU load in percentage
+        '''
+        self.percentage = percentage
+        self.cpustat = '/proc/stat'
+        self.sep = ' ' 
+        self.sleeptime = sleeptime
+
+    def getcputime(self):
+        cpu_infos = {} #collect here the information
+        with open(self.cpustat,'r') as f_stat:
+            lines = [line.split(self.sep) for content in f_stat.readlines() for line in content.split('\n') if line.startswith('cpu')]
+
+            #compute for every cpu
+            for cpu_line in lines:
+                if '' in cpu_line: cpu_line.remove('')#remove empty elements
+                cpu_line = [cpu_line[0]]+[float(i) for i in cpu_line[1:]]#type casting
+                cpu_id,user,nice,system,idle,iowait,irq,softrig,steal,guest,guest_nice = cpu_line
+
+                Idle=idle+iowait
+                NonIdle=user+nice+system+irq+softrig+steal
+
+                Total=Idle+NonIdle
+                #update dictionionary
+                cpu_infos.update({cpu_id:{'total':Total,'idle':Idle}})
+            return cpu_infos
+
+    def getcpuload(self):
+        start = self.getcputime()
+        #wait a second
+        sleep(self.sleeptime)
+        stop = self.getcputime()
+
+        cpu_load = {}
+
+        for cpu in start:
+            Total = stop[cpu]['total']
+            PrevTotal = start[cpu]['total']
+
+            Idle = stop[cpu]['idle']
+            PrevIdle = start[cpu]['idle']
+            CPU_Percentage=((Total-PrevTotal)-(Idle-PrevIdle))/(Total-PrevTotal)*100
+            cpu_load.update({cpu: CPU_Percentage})
+        return cpu_load
+
+
+#END PEGAR USO DA CPU
 
 
 class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
@@ -17,41 +88,50 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         s.send_response(200)
         s.send_header("Content-type", "text/html")
         s.end_headers()
-        s.wfile.write("<html><head><title>Title goes here.</title></head>")
-        s.wfile.write("<body><p>This is a test.</p>")
+        s.wfile.write("<html><head><title>Target System Information</title></head>")
         
         #write time
         os.environ['TZ'] = 'UTC+3'
         datahora = os.popen('date').read()
-        s.wfile.write("<p>Data e Hora: %s</p>" % datahora)
+        s.wfile.write("<p>Date and time: %s</p>" % datahora)
         
         #uptime
         uptime_file = open("/proc/uptime", "r")
         uptime = uptime_file.read().split()[0]
         s.wfile.write("<p>Uptime: %ss</p>" % uptime)
-        uptime_file.close()
         
         #cpu model and speed
         cpu_file = open("/proc/cpuinfo", "r")
         cpu_file_content = cpu_file.read().split("\n")
         model = cpu_file_content[4].split(":")[1]
         speed = cpu_file_content[6].split(":")[1]
-        s.wfile.write("<p>CPU Model: %s</p>" % model)
-        s.wfile.write("<p>CPU Speed: %s</p>" % speed)
-        cpu_file.close()
+        s.wfile.write("<p>CPU model: %s</p>" % model)
+        s.wfile.write("<p>CPU speed: %s</p>" % speed)
         
         #cpu load
-        stat_f = open("/proc/stat", "r")
-        cpu_line = stat_f.split(\n)[0].split()
-        load = int(cpu_line[1]) + int(cpu_line[2]) + int(cpu_line[3])
-        idle = int(cpu_line[4])
-        load_perc = (load / (load_idle)) * 100
+        load = GetCpuLoad().getcpuload()["cpu"]
+        s.wfile.write("<p>CPU load: %f %%</p>" % load)        
         
+        #memory info
+        mem_f = open("/proc/meminfo", "r")
+        mem_f = mem_f.read().split("\n")
+        mem_total = int(mem_f[0].split()[1])
+        mem_free = int(mem_f[1].split()[1])
+        mem_used = mem_total - mem_free
+        mem_total /= 1000
+        mem_used /= 1000        
+        s.wfile.write("<p>Total memory: %d MB</p>" % mem_total)
+        s.wfile.write("<p>Memory in use: %d MB</p>" % mem_used)
         
-
-        # If someone went to "http://something.somewhere.net/foo/bar/",
-        # then s.path equals "/foo/bar/".
-        s.wfile.write("<p>You accessed path: %s</p>" % s.path)
+        #versao do sistema
+        sys_ver = platform.platform()
+        s.wfile.write("<p>System version: %s</p>" % sys_ver)
+        
+        #lista de processos
+        list_proc = subprocess.check_output(['ps']).replace('\n','<br>')
+        s.wfile.write("<p>Process list: <br> %s</p>" % list_proc)
+        
+        #end page
         s.wfile.write("</body></html>")
 
 if __name__ == '__main__':

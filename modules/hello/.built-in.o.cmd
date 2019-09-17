@@ -1,0 +1,1 @@
+cmd_/home/labredes/Pictures/paulOS/buildroot/modules/hello/built-in.o :=  rm -f /home/labredes/Pictures/paulOS/buildroot/modules/hello/built-in.o; ar rcSTPD /home/labredes/Pictures/paulOS/buildroot/modules/hello/built-in.o
